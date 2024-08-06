@@ -13,7 +13,7 @@ Parameters:
     Type: String
     Description: "main" #
     Type: String
-    Description: "tisan-calcomartifact" 
+    Description: "" 
 
 Resources:
   CodePipelineRole:
