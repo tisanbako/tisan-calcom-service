@@ -1,0 +1,32 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 085957618812.dkr.ecr.us-west-2.amazonaws.com
+      - REPOSITORY_URI_WEB=085957618812.dkr.ecr.us-west-2.amazonaws.com/web
+      - REPOSITORY_URI_API_V1=085957618812.dkr.ecr.us-west-2.amazonaws.com/api-v1
+      - REPOSITORY_URI_API_V2=085957618812.dkr.ecr.us-west-2.amazonaws.com/api-v2
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker images...
+      - docker build -t $REPOSITORY_URI_WEB:latest -f Deployment/web/Dockerfile .
+      - docker build -t $REPOSITORY_URI_API_V1:latest -f Deployment/api/v1/Dockerfile .
+      - docker build -t $REPOSITORY_URI_API_V2:latest -f Deployment/api/v2/Dockerfile .
+      - docker tag $REPOSITORY_URI_WEB:latest $REPOSITORY_URI_WEB:$IMAGE_TAG
+      - docker tag $REPOSITORY_URI_API_V1:latest $REPOSITORY_URI_API_V1:$IMAGE_TAG
+      - docker tag $REPOSITORY_URI_API_V2:latest $REPOSITORY_URI_API_V2:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI_WEB:latest
+      - docker push $REPOSITORY_URI_WEB:$IMAGE_TAG
+      - docker push $REPOSITORY_URI_API_V1:latest
+      - docker push $REPOSITORY_URI_API_V1:$IMAGE_TAG
+      - docker push $REPOSITORY_URI_API_V2:latest
+      - docker push $REPOSITORY_URI_API_V2:$IMAGE_TAG

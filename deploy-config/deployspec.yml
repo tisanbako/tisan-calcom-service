@@ -1,0 +1,23 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 085957618812.dkr.ecr.us-west-2.amazonaws.com
+      - REPOSITORY_URI_WEB=085957618812.dkr.ecr.us-west-2.amazonaws.com/web
+      - REPOSITORY_URI_API_V1=085957618812.dkr.ecr.us-west-2.amazonaws.com/api-v1
+      - REPOSITORY_URI_API_V2=085957618812.dkr.ecr.us-west-2.amazonaws.com/api-v2
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Deploying to Kubernetes...
+      - kubectl apply -f .aws/eks/config
+      - kubectl set image deployment/web web=$REPOSITORY_URI_WEB:$IMAGE_TAG
+      - kubectl set image deployment/api-v1 api-v1=$REPOSITORY_URI_API_V1:$IMAGE_TAG
+      - kubectl set image deployment/api-v2 api-v2=$REPOSITORY_URI_API_V2:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Deployment completed on `date`
