@@ -21,8 +21,8 @@ RUN yarn install
 RUN rm -rf apps/api/v2/node_modules
 RUN yarn install
 
-RUN yarn workspace @calcom/api-v2 run build
+#RUN yarn workspace @calcom/api-v1 run build
 
 EXPOSE 80
 
-CMD [ "yarn", "workspace", "@calcom/api-v1", "start:prod"]
+CMD [ "yarn", "start:prod"]
