@@ -1,168 +1,181 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Parameters:
-  GitHubToken:
-    Type: String
-    Description: 
-  GitHubOwner:
-    Type: String
-    Description: "tisanbako" 
-  GitHubRepo:
-    Type: String
-    Description: "tisan-calcom-service" 
-  GitHubBranch:
-    Type: String
-    Description: "main" #
-    Type: String
-    Description: "" 
-
 Resources:
+  # Pipeline IAM Role
   CodePipelineRole:
-    Type: "AWS::IAM::Role"
+    Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
-          - Effect: "Allow"
+          - Effect: Allow
             Principal:
-              Service: "codepipeline.amazonaws.com"
-            Action: "sts:AssumeRole"
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
       Policies:
-        - PolicyName: "CodePipelinePolicy"
+        - PolicyName: CodePipelinePolicy
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
-              - Effect: "Allow"
+              - Effect: Allow
                 Action:
-                  - "s3:*"
-                  - "codebuild:*"
-                  - "codepipeline:*"
-                Resource: "*"
-
-  CodeBuildRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: "Allow"
-            Principal:
-              Service: "codebuild.amazonaws.com"
-            Action: "sts:AssumeRole"
-      Policies:
-        - PolicyName: "CodeBuildPolicy"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - codebuild:BatchGetProjects
+                Resource: '*'
+              - Effect: Allow
                 Action:
-                  - "logs:*"
-                  - "s3:*"
-                  - "ecr:*"
-                  - "ec2:*"
-                  - "cloudwatch:*"
-                  - "codebuild:*"
-                  - "codepipeline:*"
-                  - "ssm:GetParameters"
-                  - "kms:Decrypt"
-                  - "kms:Encrypt"
-                  - "kms:GenerateDataKey"
-                  - "kms:DescribeKey"
-                  - "kms:ListAliases"
-                  - "kms:ListKeys"
-                  - "kms:CreateGrant"
-                  - "kms:RetireGrant"
-                Resource: "*"
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                Resource: arn:aws:s3:::<your-s3-bucket-name>/* # Replace with your S3 bucket name
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: '*'
 
-  ECRRepositoryWeb:
-    Type: "AWS::ECR::Repository"
-    Properties:
-      RepositoryName: "calcom-web" 
-
-  ECRRepositoryAPIV1:
-    Type: "AWS::ECR::Repository"
-    Properties:
-      RepositoryName: "calcom-api-v1"
-
-  ECRRepositoryAPIV2:
-    Type: "AWS::ECR::Repository"
-    Properties:
-      RepositoryName: "calcom-api-v2" 
-
-  CodeBuildProject:
-    Type: "AWS::CodeBuild::Project"
-    Properties:
-      Name: !Sub "${AWS::StackName}-build"
-      Description: "Build project for Cal.com"
-      Source:
-        Type: "GITHUB"
-        Location: !Sub "https://github.com/tisanbako/tisan-calcom-service.git" 
-        Auth:
-          Resource: "arn:aws:secretsmanager:us-west-2:accountID:secret:
-          Type: "OAUTH"
-      Artifacts:
-        Type: "S3"
-        Location: !Ref tisan-calcomartifact 
-      Environment:
-        ComputeType: "BUILD_GENERAL1_SMALL"
-        Image: "aws/codebuild/standard:4.0"
-        Type: "LINUX_CONTAINER"
-        EnvironmentVariables:
-          - Name: "AWS_DEFAULT_REGION"
-            Value: "us-west-2" 
-          - Name: "ECR_REPOSITORY_WEB"
-            Value: !Ref "ECRRepositoryWeb" 
-          - Name: "ECR_REPOSITORY_API_V1"
-            Value: !Ref "ECRRepositoryAPIV1" 
-          - Name: "ECR_REPOSITORY_API_V2"
-            Value: !Ref "ECRRepositoryAPIV2" 
+  # Source Stage: GitHub Repository
+  SourceOutputArtifactBucket:
+    Type: AWS::S3::Bucket
 
   CodePipeline:
-    Type: "AWS::CodePipeline::Pipeline"
+    Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: !Sub "${AWS::StackName}-pipeline"
       RoleArn: !GetAtt CodePipelineRole.Arn
       Stages:
         - Name: Source
           Actions:
-            - Name: SourceAction
+            - Name: GitHub_Source
               ActionTypeId:
                 Category: Source
                 Owner: ThirdParty
                 Provider: GitHub
                 Version: 1
-              OutputArtifacts:
-                - Name: SourceOutput
               Configuration:
-                Owner: !Ref tisanbako #
-                Repo: !Ref tisan-calcom-service 
-                Branch: !Ref main #
-                OAuthToken: !Ref 
+                Owner: tisanbako # Replace with your GitHub username
+                Repo: <your-name>-calcom-service # Replace with your repository name
+                Branch: main
+                OAuthToken: <your-oauth-token> # Replace with your GitHub OAuth token
+              OutputArtifacts:
+                - Name: SourceArtifact
               RunOrder: 1
+
         - Name: Build
           Actions:
-            - Name: BuildAction
+            - Name: Build_Project
               ActionTypeId:
                 Category: Build
                 Owner: AWS
                 Provider: CodeBuild
                 Version: 1
-              InputArtifacts:
-                - Name: SourceOutput
-              OutputArtifacts:
-                - Name: BuildOutput
               Configuration:
-                ProjectName: !Ref CodeBuildProject
+                ProjectName: !Ref BuildProject
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
               RunOrder: 1
+
         - Name: Deploy
           Actions:
-            - Name: DeployAction
+            - Name: Deploy_Project
               ActionTypeId:
-                Category: Deploy
+                Category: Build
                 Owner: AWS
                 Provider: CodeBuild
                 Version: 1
-              InputArtifacts:
-                - Name: BuildOutput
               Configuration:
-                ProjectName: !Ref CodeBuildProject
+                ProjectName: !Ref DeployProject
+              InputArtifacts:
+                - Name: BuildArtifact
               RunOrder: 1
+
+      ArtifactStore:
+        Type: S3
+        Location: !Ref SourceOutputArtifactBucket
+
+  # Build Stage: CodeBuild Project for Building Docker Images
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AWS::StackName}-build-project'
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:5.0
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: us-west-2 # Replace with your region
+          - Name: ECR_REPO_URI
+            Value: <ecr-repo-uri> # Replace with your ECR repository URI
+      Source:
+        Type: CODEPIPELINE
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+
+  # Deploy Stage: CodeBuild Project for Deploying to EKS
+  DeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AWS::StackName}-deploy-project'
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:5.0
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: us-west-2 # Replace with your region
+          - Name: EKS_CLUSTER_NAME
+            Value: <eks-cluster-name> # Replace with your EKS cluster name
+      Source:
+        Type: CODEPIPELINE
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+
+  # IAM Role for CodeBuild Projects
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:InitiateLayerUpload
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:PutImage
+                  - ecr:CreateRepository
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:log-group:/aws/codebuild/*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
+                Resource: arn:aws:s3:::<your-s3-bucket-name>/* # Replace with your S3 bucket name
+              - Effect: Allow
+                Action:
+                  - eks:DescribeCluster
+                  - eks:ListClusters
+                  - eks:DescribeNodegroup
+                  - eks:ListNodegroups
+                Resource: '*'
