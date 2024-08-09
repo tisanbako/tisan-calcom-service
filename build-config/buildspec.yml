@@ -1,42 +1,4 @@
 version: 0.2
-
-phases:
-  install:
-    commands:
-      - echo Installing dependencies...
-      - apt-get update
-      - apt-get install -y jq
-      - pip install awscli --upgrade --user
-  pre_build:
-    commands:
-      - echo Logging in to Amazon ECR...
-      - $(aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI)  # Replace $AWS_REGION and $ECR_REPO_URI
-      - REPOSITORY_URI=$ECR_REPO_URI/$IMAGE_REPO_NAME  # Replace $ECR_REPO_URI and $IMAGE_REPO_NAME
-      - IMAGE_TAG=$CODEBUILD_RESOLVED_SOURCE_VERSION  # Automatically set by CodeBuild
-  build:
-    commands:
-      - echo Building Docker images...
-      - docker build -t 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-web -f Deployment/web/Dockerfile .  # Replace $REPOSITORY_URI and $IMAGE_TAG
-      - docker build -t 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-api-v1 -f Deployment/api/v1/Dockerfile .  # Replace $REPOSITORY_URI and $IMAGE_TAG
-      - docker build -t 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-api-v2 -f Deployment/api/v2/Dockerfile .  # Replace $REPOSITORY_URI and $IMAGE_TAG
-  post_build:
-    commands:
-      - echo Pushing Docker images to ECR...
-      - docker push 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-web  # Replace $REPOSITORY_URI and $IMAGE_TAG
-      - docker push 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-api-v1  # Replace $REPOSITORY_URI and $IMAGE_TAG
-      - docker push 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-api-v2  # Replace $REPOSITORY_URI and $IMAGE_TAG
-      - echo Writing image definitions...
-      - printf '[{"name":"web","imageUri":"%s/web:%s"},{"name":"api-v1","imageUri":"%s/api/v1:%s"},{"name":"api-v2","imageUri":"%s/api/v2:%s"}]' 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-web 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-api-v1 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-api-v2 imagedefinitions.json  # Replace $REPOSITORY_URI and $IMAGE_TAG
-artifacts:
-  files: imagedefinitions.json
-
-
-
-
-
-
-
-version: 0.2
 phases:
   install:
     commands:

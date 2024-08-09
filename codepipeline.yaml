@@ -3,10 +3,10 @@ Resources:
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      RoleArn: arn:aws:iam::<account-id>:role/service-role/AWS-CodePipeline-Service
+      RoleArn: arn:aws:iam::085957618812:role/service-role/AWS-CodePipeline-Service  # Replace <account-id>
       ArtifactStore:
         Type: S3
-        Location: <your-artifact-store-bucket>
+        Location: tisan-calcomartifact  # Replace with your S3 bucket name for artifacts
       Stages:
         - Name: Source
           Actions:
@@ -19,10 +19,10 @@ Resources:
               OutputArtifacts:
                 - Name: SourceOutput
               Configuration:
-                Owner: <github-owner>
-                Repo: <github-repo>
-                Branch: <branch-name>
-                OAuthToken: <github-oauth-token>
+                Owner: tisanbako  # Replace with GitHub owner (user or organization)
+                Repo: tisan-calcom-service # Replace with your GitHub repository name
+                Branch: main  # Replace with the branch to be used
+                OAuthToken: <github-oauth-token>  # Replace with a GitHub OAuth token with access to the repo
               RunOrder: 1
         - Name: Build
           Actions:
@@ -37,7 +37,7 @@ Resources:
               OutputArtifacts:
                 - Name: BuildOutput
               Configuration:
-                ProjectName: <build-project-name>
+                ProjectName: <build-project-name>  # Replace with the name of your CodeBuild project for building
               RunOrder: 1
         - Name: Deploy
           Actions:
@@ -50,39 +50,39 @@ Resources:
               InputArtifacts:
                 - Name: BuildOutput
               Configuration:
-                ProjectName: <deploy-project-name>
+                ProjectName: <deploy-project-name>  # Replace with the name of your CodeBuild project for deploying
               RunOrder: 1
 
   # CodeBuild project for building Docker images
   BuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: <build-project-name>
+      Name: <build-project-name>  # Replace with the name of your CodeBuild project
       Source:
         Type: CODEPIPELINE
-        BuildSpec: build-config/buildspec.yml
+        BuildSpec: build-config/buildspec.yml  # Ensure path is correct
       Artifacts:
         Type: CODEPIPELINE
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/standard:5.0
         Type: LINUX_CONTAINER
-      ServiceRole: arn:aws:iam::<account-id>:role/service-role/AWS-CodeBuild-ServiceRole
+      ServiceRole: arn:aws:iam::<account-id>:role/service-role/AWS-CodeBuild-ServiceRole  # Replace <account-id>
       TimeoutInMinutes: 60
 
   # CodeBuild project for deploying to EKS
   DeployProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: <deploy-project-name>
+      Name: <deploy-project-name>  # Replace with the name of your CodeBuild project
       Source:
         Type: CODEPIPELINE
-        BuildSpec: deploy-config/deployspec.yml
+        BuildSpec: deploy-config/deployspec.yml  # Ensure path is correct
       Artifacts:
         Type: CODEPIPELINE
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/standard:5.0
         Type: LINUX_CONTAINER
-      ServiceRole: arn:aws:iam::<account-id>:role/service-role/AWS-CodeBuild-ServiceRole
+      ServiceRole: arn:aws:iam::<account-id>:role/service-role/AWS-CodeBuild-ServiceRole  # Replace <account-id>
       TimeoutInMinutes: 60
