@@ -1,181 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
 Resources:
-  # Pipeline IAM Role
-  CodePipelineRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codepipeline.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CodePipelinePolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - codebuild:StartBuild
-                  - codebuild:BatchGetBuilds
-                  - codebuild:BatchGetProjects
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                  - s3:GetObjectVersion
-                  - s3:GetBucketVersioning
-                Resource: arn:aws:s3:::<your-s3-bucket-name>/* # Replace with your S3 bucket name
-              - Effect: Allow
-                Action:
-                  - iam:PassRole
-                Resource: '*'
-
-  # Source Stage: GitHub Repository
-  SourceOutputArtifactBucket:
-    Type: AWS::S3::Bucket
-
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      RoleArn: !GetAtt CodePipelineRole.Arn
+      RoleArn: arn:aws:iam::<account-id>:role/service-role/AWS-CodePipeline-Service
+      ArtifactStore:
+        Type: S3
+        Location: <your-artifact-store-bucket>
       Stages:
         - Name: Source
           Actions:
-            - Name: GitHub_Source
+            - Name: SourceAction
               ActionTypeId:
                 Category: Source
                 Owner: ThirdParty
                 Provider: GitHub
-                Version: 1
-              Configuration:
-                Owner: tisanbako # Replace with your GitHub username
-                Repo: <your-name>-calcom-service # Replace with your repository name
-                Branch: main
-                OAuthToken: <your-oauth-token> # Replace with your GitHub OAuth token
+                Version: '1'
               OutputArtifacts:
-                - Name: SourceArtifact
+                - Name: SourceOutput
+              Configuration:
+                Owner: <github-owner>
+                Repo: <github-repo>
+                Branch: <branch-name>
+                OAuthToken: <github-oauth-token>
               RunOrder: 1
-
         - Name: Build
           Actions:
-            - Name: Build_Project
+            - Name: BuildAction
               ActionTypeId:
                 Category: Build
                 Owner: AWS
                 Provider: CodeBuild
-                Version: 1
-              Configuration:
-                ProjectName: !Ref BuildProject
+                Version: '1'
               InputArtifacts:
-                - Name: SourceArtifact
+                - Name: SourceOutput
               OutputArtifacts:
-                - Name: BuildArtifact
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: <build-project-name>
               RunOrder: 1
-
         - Name: Deploy
           Actions:
-            - Name: Deploy_Project
+            - Name: DeployAction
               ActionTypeId:
-                Category: Build
+                Category: Deploy
                 Owner: AWS
                 Provider: CodeBuild
-                Version: 1
-              Configuration:
-                ProjectName: !Ref DeployProject
+                Version: '1'
               InputArtifacts:
-                - Name: BuildArtifact
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: <deploy-project-name>
               RunOrder: 1
 
-      ArtifactStore:
-        Type: S3
-        Location: !Ref SourceOutputArtifactBucket
-
-  # Build Stage: CodeBuild Project for Building Docker Images
+  # CodeBuild project for building Docker images
   BuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Sub '${AWS::StackName}-build-project'
+      Name: <build-project-name>
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: build-config/buildspec.yml
       Artifacts:
         Type: CODEPIPELINE
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/standard:5.0
         Type: LINUX_CONTAINER
-        EnvironmentVariables:
-          - Name: AWS_DEFAULT_REGION
-            Value: us-west-2 # Replace with your region
-          - Name: ECR_REPO_URI
-            Value: <ecr-repo-uri> # Replace with your ECR repository URI
-      Source:
-        Type: CODEPIPELINE
-      ServiceRole: !GetAtt CodeBuildRole.Arn
+      ServiceRole: arn:aws:iam::<account-id>:role/service-role/AWS-CodeBuild-ServiceRole
+      TimeoutInMinutes: 60
 
-  # Deploy Stage: CodeBuild Project for Deploying to EKS
+  # CodeBuild project for deploying to EKS
   DeployProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Sub '${AWS::StackName}-deploy-project'
+      Name: <deploy-project-name>
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: deploy-config/deployspec.yml
       Artifacts:
         Type: CODEPIPELINE
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/standard:5.0
         Type: LINUX_CONTAINER
-        EnvironmentVariables:
-          - Name: AWS_DEFAULT_REGION
-            Value: us-west-2 # Replace with your region
-          - Name: EKS_CLUSTER_NAME
-            Value: <eks-cluster-name> # Replace with your EKS cluster name
-      Source:
-        Type: CODEPIPELINE
-      ServiceRole: !GetAtt CodeBuildRole.Arn
-
-  # IAM Role for CodeBuild Projects
-  CodeBuildRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codebuild.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CodeBuildPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecr:GetDownloadUrlForLayer
-                  - ecr:BatchGetImage
-                  - ecr:CompleteLayerUpload
-                  - ecr:UploadLayerPart
-                  - ecr:InitiateLayerUpload
-                  - ecr:BatchCheckLayerAvailability
-                  - ecr:PutImage
-                  - ecr:CreateRepository
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:log-group:/aws/codebuild/*
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:GetObjectVersion
-                Resource: arn:aws:s3:::<your-s3-bucket-name>/* # Replace with your S3 bucket name
-              - Effect: Allow
-                Action:
-                  - eks:DescribeCluster
-                  - eks:ListClusters
-                  - eks:DescribeNodegroup
-                  - eks:ListNodegroups
-                Resource: '*'
+      ServiceRole: arn:aws:iam::<account-id>:role/service-role/AWS-CodeBuild-ServiceRole
+      TimeoutInMinutes: 60

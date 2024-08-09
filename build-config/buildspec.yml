@@ -10,9 +10,9 @@ phases:
   build:
     commands:
       - echo "Building the Docker images"
-      - docker build -t 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-web:latest -f .aws/eks/deployment/web/Dockerfile . # Replace <account-id> and <region>
-      - docker build -t 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-api-v1:latest -f .aws/eks/deployment/api/v1/Dockerfile . # Replace <account-id> and <region>
-      - docker build -t 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-api-v2:latest -f .aws/eks/deployment/api/v2/Dockerfile . # Replace <account-id> and <region>
+      - docker build -t 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-web:latest -f ./deployment/web/Dockerfile . # Replace <account-id> and <region>
+      - docker build -t 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-api-v1:latest -f ./deployment/api/v1/Dockerfile . # Replace <account-id> and <region>
+      - docker build -t 085957618812.dkr.ecr.us-west-2.amazonaws.com/calcom-api-v2:latest -f ./deployment/api/v2/Dockerfile . # Replace <account-id> and <region>
   post_build:
     commands:
       - echo "Pushing the Docker images"
